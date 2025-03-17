@@ -1,0 +1,4 @@
+{
+    "presets": ["@babel/preset-env"], // This is the preset that tells Babel to use the latest JavaScript features that are not yet supported by the Node.js version you are using to run your application. 
+
+}
