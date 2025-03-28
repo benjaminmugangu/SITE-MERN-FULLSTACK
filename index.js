@@ -1,42 +1,67 @@
-// On importe MongoClient de la bibliothèque MongoDB pour pouvoir se connecter à la base de données.
-import { MongoClient } from "mongodb";
-// On importe dotenv pour pouvoir charger les variables d'environnement du fichier .env.
 import dotenv from "dotenv";
+import { MongoClient, ServerApiVersion } from "mongodb";
+import express from "express";
 
-// On charge les variables d'environnement du fichier .env.
 dotenv.config();
 
-// On récupère l'URL de connexion à MongoDB depuis les variables d'environnement.
+const app = express();
+const port = 5000;
 const uri = process.env.MONGO_URI;
 
-// Création d'un client MongoDB en utilisant l'URI de connexion.
-const client = new MongoClient(uri);
+// Middleware pour parser le JSON
+app.use(express.json());
 
-// Fonction asynchrone pour tester la connexion à MongoDB.
-async function testConnection() {
+// Création du client MongoDB
+const client = new MongoClient(uri, { serverApi: ServerApiVersion.v1 });
+
+async function connectDB() {
   try {
-    // Connexion à la base de données MongoDB.
     await client.connect();
-    
-    // Sélection de la base de données "blog" (il faut remplacer par le nom réel de ta base de données).
-    const db = client.db("blog"); // Mets le bon nom ici
-    
-    // Sélection de la collection "posts" (il faut remplacer par le nom réel de ta collection).
-    const collection = db.collection("posts"); // Mets le bon nom ici
-    
-    // Recherche tous les documents dans la collection et les transforme en un tableau.
-    const documents = await collection.find({}).toArray();
-
-    // Affiche les documents trouvés dans la console.
-    console.log("✅ Documents trouvés :", documents);
+    console.log("Connexion à la base de données réussie");
   } catch (error) {
-    // Si une erreur se produit, on l'affiche dans la console.
-    console.error("❌ Erreur MongoDB :", error);
-  } finally {
-    // On ferme la connexion avec MongoDB à la fin, qu'il y ait une erreur ou non.
-    await client.close();
+    console.error("Erreur de connexion à la base de données :", error);
+    process.exit(1); // Arrête l'application en cas d'échec critique
   }
 }
 
-// Appel de la fonction pour tester la connexion.
-testConnection();
+// Route pour récupérer les posts
+app.get("/", async (_, res) => {
+  try {
+    const db = client.db("blog");
+    const posts = await db.collection("posts").find().toArray();
+    res.status(200).json(posts);
+  } catch (error) {
+    console.error("Erreur lors de la récupération des posts :", error);
+    res.status(500).json({ message: "Erreur interne du serveur" });
+  }
+});
+
+// 🚀 Route pour ajouter un nouveau post (POST /add)
+app.post("/add", async (req, res) => {
+  try {
+    const { title, content } = req.body;
+    if (!title || !content) {
+      return res.status(400).json({ message: "Titre et contenu requis" });
+    }
+
+    const db = client.db("blog");
+    const result = await db.collection("posts").insertOne({ title, content });
+
+    res.status(201).json({ message: "Post ajouté avec succès", id: result.insertedId });
+  } catch (error) {
+    console.error("Erreur lors de l'ajout du post :", error);
+    res.status(500).json({ message: "Erreur interne du serveur" });
+  }
+});
+
+// 🚀 Route GET /add pour tester si elle fonctionne (facultatif)
+app.get("/add", (_, res) => {
+  res.send("Route /add fonctionne, mais utilise POST pour ajouter un post.");
+});
+
+// Lancer le serveur après la connexion à la base de données
+connectDB().then(() => {
+  app.listen(port, () => {
+    console.log(`Serveur démarré sur le port ${port}`);
+  });
+});
